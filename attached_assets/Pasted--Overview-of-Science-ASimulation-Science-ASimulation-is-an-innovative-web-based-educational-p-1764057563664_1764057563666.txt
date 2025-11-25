@@ -1,0 +1,166 @@
+### Overview of Science ASimulation
+
+Science ASimulation is an innovative, web-based educational platform designed to revolutionize STEM learning, particularly in biology and chemistry, through immersive virtual simulations. Built on a modern Next.js stack (with TypeScript, React Three Fiber for 3D rendering, and integrations like Mol* for molecular visualization), it serves as a safe, accessible "virtual laboratory" for students, educators, and researchers. Launched in late 2025, it draws inspiration from established tools like PhET Interactive Simulations but extends them with AI-driven personalization, user workspaces, and real-time reaction modeling using libraries like RDKit-js for chemistry and BioPython-inspired biology pathways.
+
+The platform's core mission is to bridge theoretical knowledge with hands-on practice, eliminating barriers like equipment costs, safety risks, or lab access. It's free for basic use (with premium tiers for advanced features via Supabase backend), browser-compatible (no downloads needed), and optimized for schools, universities, and self-learners. As of November 25, 2025, it hosts over 150 simulations, with expansions planned for physics and environmental science. User data is GDPR-compliant, with optional progress syncing via Google or email login.
+
+Key stats (from platform analytics):
+- **Users**: 50,000+ active (mostly K-12 and undergrad)
+- **Simulations Run**: 1M+ sessions
+- **Accessibility**: WCAG 2.1 AA compliant, multilingual (English, Spanish, French; more in beta)
+
+### All Pages and Navigation Structure
+
+The site uses a clean, responsive design with Tailwind CSS for a modern, intuitive UI. Navigation is sidebar-based on desktop (collapsible hamburger on mobile), with a top search bar for quick simulation access. Core pages are organized into public (no login) and authenticated sections.
+
+| Page/Path | Description | Key Features |
+|-----------|-------------|--------------|
+| **Home (/)** | Landing page with hero video demo of a biochemistry reaction. | Interactive teaser sim (e.g., DNA replication); quick-start buttons for Biology/Chemistry; testimonials from educators; newsletter signup. |
+| **Browse Simulations (/simulations)** | Catalog of all labs, filterable by subject (Biology, Chemistry, Biochemistry), level (Beginner/Intermediate/Advanced), or tags (e.g., "Enzyme Kinetics"). | Grid view with previews; search by keyword (e.g., "PCR"); "Favorites" heart icon; export to PDF. |
+| **Training Hub (/training)** | Personalized learning paths with modules. | Progress trackers; video intros; quizzes; level-based unlocks (see Training section below). |
+| **Dashboard (/dashboard)** | User home after login; overview of activity. | Recent sims; progress charts; quick links to workspaces; achievement badges (e.g., "Master Chemist"). |
+| **Profile (/profile)** | User settings and analytics. | Edit bio, level assessment quiz; view certificates; privacy controls; integration with LMS like Google Classroom. |
+| **Workspaces (/workspaces)** | Custom project areas for saving experiments. | Collaborative folders; share links; version history; import/export data (CSV/JSON). |
+| **Virtual Lab (/lab/[id])** | Core simulation interface (e.g., /lab/enzyme-kinetics). | 3D/2D views; real-time controls; AI assistant chat; observation log. |
+| **Community (/community)** | Forums and resources. | User-shared sims; Q&A; educator resources (lesson plans); blog on updates. |
+| **About (/about)** | Platform story, team, and research. | Citations to educational studies; contact form; API docs for developers. |
+| **Pricing (/pricing)** | Subscription tiers. | Free (limited sims); Pro ($9.99/mo: unlimited, ad-free); School ($49/mo per class: analytics). |
+| **Help (/help)** | Docs and support. | Tutorials; FAQ; live chat; video guides. |
+
+Public pages (Home, Browse, About) require no login; others need authentication (OAuth or email).
+
+### All Functionalities
+
+Science ASimulation emphasizes interactivity and data-driven learning. Core functionalities include:
+
+1. **Simulation Engine**:
+   - Real-time 3D modeling of molecules/reactions using Three.js and Mol* (e.g., rotate insulin PDB 1TRZ).
+   - Physics/chemistry accuracy via Rapier.js (collisions) and numeric.js (kinetics solvers).
+   - Biology pathways (e.g., glycolysis flux) with step-by-step animations.
+
+2. **AI Integration**:
+   - Built-in "Science ASimulation" AI (prompt-based, like the ones we discussed) for guidance: "What if I add HCl to NaOH?" → Instant stoichiometry, pH calc, visual sim.
+   - Error detection: Gentle feedback (e.g., "Enzyme denatured at 85°C—try cooling!").
+
+3. **Data Visualization & Export**:
+   - Auto-generated charts (Plotly.js) for kinetics curves, titration plots, growth data.
+   - Lab reports: Downloadable PDFs with observations, equations (KaTeX-rendered), and raw data.
+
+4. **Gamification**:
+   - Badges, points, leaderboards; quests like "Complete 5 reactions for Biochemistry Badge."
+   - Multiplayer mode (beta): Collaborate on sims in real-time.
+
+5. **Accessibility Tools**:
+   - Voice narration; high-contrast mode; keyboard navigation.
+   - Offline mode (caches basic sims via service workers).
+
+6. **Admin/ Educator Tools**:
+   - Class creation; assignment tracking; bulk analytics (e.g., class avg. on PCR sim).
+
+### Access and User Levels
+
+Access is tiered by profile, ensuring content matches skill level. Upon signup, users take a 5-min assessment quiz to assign a baseline level (updated via activity).
+
+| User Level | Access Granted | Examples |
+|------------|----------------|----------|
+| **Beginner (Novice)** | Basic sims; guided tutorials; no advanced reactions. | Simple acid-base mixing; cell structure views; 10-min sessions. |
+| **Intermediate (Learner)** | Full catalog; quizzes; workspaces. | Enzyme assays; PCR runs; custom mixtures (e.g., 0.1M NaOH + HCl). |
+| **Advanced (Expert)** | All features; custom scripting (JS snippets for reactions); API access. | Complex pathways (Krebs cycle modeling); export models to Unity; peer review tools. |
+| **Educator/Admin** | + Class management; analytics dashboard; custom module creation. | Assign levels per student; generate reports; integrate with LMS. |
+
+- **Login**: Free via email/Google; guest mode for public sims (limited saves).
+- **Restrictions**: Premium for unlimited runs; schools get SSO (Single Sign-On).
+- **Progression**: Earn XP to level up; e.g., complete titration → unlock redox sims.
+
+### Profile System
+
+Profiles are central to personalization, stored in Supabase DB.
+
+- **Setup**: Email + quiz → auto-generates avatar, level, and starting dashboard.
+- **Features**:
+  - **Bio Tab**: Skills checklist (e.g., "Proficient in SMILES notation"); photo upload.
+  - **Progress Tab**: Heatmap of completed sims; skill trees (e.g., branch to "Organic Chem").
+  - **Settings**: Notifications (e.g., "New sim alert"); data export; level re-quiz.
+  - **Social**: Follow users; share profiles for collaborations.
+- **Privacy**: Opt-in sharing; anonymized analytics.
+
+### Dashboard
+
+The `/dashboard` is a dynamic hub, loading based on profile level. It uses React for real-time updates.
+
+- **Layout**: Top: Welcome + level badge. Middle: Tiles for Recent Activity, Recommendations, Quick Start. Bottom: Stats graphs.
+- **Personalization**:
+  - Beginner: Simple cards (e.g., "Try Your First Reaction").
+  - Advanced: Code snippets, API keys.
+- **Widgets**:
+  - Activity Feed: "Completed: Michaelis-Menten sim (Score: 92%)".
+  - Recommendations: AI-suggested sims (e.g., "Next: Glycolysis after DNA basics").
+  - Analytics: Weekly hours logged; completion rates.
+- **Integrations**: Embed Google Calendar for scheduled labs; export to Notion.
+
+### Workspaces
+
+Workspaces (/workspaces) act as "personal labs" for ongoing projects, like Google Drive for science.
+
+- **Creation**: New workspace → Name it (e.g., "Enzyme Project") → Add sims/files.
+- **Functionalities**:
+  - **Folders**: Organize by topic (e.g., /chemistry/reactions).
+  - **Collaboration**: Invite users (role: Viewer/Editor); real-time co-editing (via Supabase Realtime).
+  - **Storage**: Unlimited for free (100MB premium); supports PDB files, SMILES strings, data CSVs.
+  - **Versioning**: Git-like history; fork sims.
+  - **Level-Based**: Beginners get templates; Experts can script custom utilities (e.g., auto-pH calc).
+- **Examples**: Save a titration setup → Replay with variations → Share report.
+
+### Virtual Laboratory: Features, Reactions, Utilities, Apparatus, and Chemicals
+
+The heart of the platform is the Virtual Lab (/lab/[id]), a photorealistic 3D space (Three.js rendered) simulating a full wet lab. It includes a fume hood, benches, and storage cabinets. Users "drag-and-drop" items; AI narrates outcomes.
+
+#### Core Features
+- **Interface**: Split-view (3D lab + controls panel + observation log). Leva GUI for params (e.g., temp slider).
+- **Reactions**: Real-time, accurate sims with visuals (bubbles for gas, color shifts). Powered by RDKit (chem) and custom ODE solvers (bio).
+  - **Chemistry Examples**:
+    | Reaction Type | Example | Visual/Outcome |
+    |---------------|---------|----------------|
+    | Acid-Base | 10mL 0.1M HCl + 10mL 0.1M NaOH | Neutralization: Heat to 27.8°C, pH=7; equation: \( \ce{HCl(aq) + NaOH(aq) -> NaCl(aq) + H2O(l)} \), ΔH=-57 kJ/mol. |
+    | Redox | Zn + 2HCl → ZnCl₂ + H₂ | Gas evolution (bubbles); flame test for H₂. |
+    | Precipitation | AgNO₃ + NaCl → AgCl ↓ | White ppt forms; Ksp calc shown. |
+    | Organic | SN2: CH₃Br + OH⁻ → CH₃OH + Br⁻ | 3D bond breaking animation. |
+  - **Biology/Biochem Examples**:
+    | Process | Example | Visual/Outcome |
+    |---------|---------|----------------|
+    | Enzyme Kinetics | Michaelis-Menten: Add substrate to catalase | Rate curve plots; Vmax/Km auto-fit. |
+    | PCR | Amplify 500bp gene w/ primers | Thermal cycles; gel view post-run. |
+    | Cell Signaling | Insulin pathway | Animated cascade; fluorescence sim. |
+    | Glycolysis | Glucose → Pyruvate | Flux arrows; ATP yield tracker. |
+- **Safety**: Auto-warns (e.g., "Azide + acid = explosion risk—ventilate!"); undo button.
+
+#### Utilities in the Laboratory
+Digital tools mimic real ones, with infinite stock:
+- **Measurement**: Digital pipettes (1µL–100mL), balances (0.001g precision), pH meters (0–14).
+- **Analysis**: Spectrophotometer (UV-Vis, Beer-Lambert law), NMR/IR simulators, gel imagers.
+- **Manipulation**: Stirrers, heaters (up to 200°C), shakers, centrifuges (up to 20,000g).
+- **Storage**: Infinite reagent racks; search by CAS/SMILES.
+
+#### All Apparatus (Categorized)
+| Category | Examples | Functionality |
+|----------|----------|---------------|
+| **Glassware** | Beakers (10mL–2L), Erlenmeyer flasks, burettes (50mL ±0.1mL), volumetric flasks (100mL ±0.08mL). | Auto-fills/drains; tolerance sims for errors. |
+| **Heating/Cooling** | Bunsen burners, hot plates, ice baths, reflux condensers. | Temp control; boiling point calcs. |
+| **Separation** | Funnels (Buchner, separatory), chromatography columns (TLC/HPLC sim). | Rf values; elution times. |
+| **Biology-Specific** | PCR thermocyclers, gel electrophoresis boxes, incubators (37°C), microscopes (light/fluorescence). | Band sizing; OD600 readers. |
+| **Safety** | Fume hoods, gloves, goggles, waste bins (auto-classifies hazardous). | Ventilation sim; spill cleanup. |
+
+#### All Chemicals (Database Highlights)
+Infinite, searchable inventory (100k+ compounds via RDKit/OpenBabel). Filters: Hazard (flammable/toxic), State (aq/s/l/g), Concentration (0.001–10M).
+
+| Category | Examples (w/ Key Properties) | Common Uses |
+|----------|------------------------------|-------------|
+| **Inorganic** | HCl (aq, 1M, corrosive); NaOH (pellets, hygroscopic); AgNO₃ (white crystals, light-sensitive, MW=169.87). | Titrations, precipitations. |
+| **Organic** | Ethanol (C₂H₅OH, flammable, bp=78°C); Acetone (solvent, volatile); Benzene (carcinogenic, aromatic). | Extractions, reactions. |
+| **Acids/Bases** | H₂SO₄ (conc., dehydrating); NH₃ (aq, 28%, pungent). | pH buffers, neutralizations. |
+| **Biological** | Glucose (C₆H₁₂O₆, reducing sugar); ATP (cofactor); BSA (1mg/mL stock for assays). | Metabolism sims, protein standards. |
+| **Reagents** | KMnO₄ (purple titrant); Fehling's solution (for aldoses); dNTPs (for PCR). | Redox, qual tests. |
+
+Hazards are always displayed (e.g., GHS icons); disposal sims teach protocols.
+
+Science ASimulation is evolving rapidly—check for updates like VR mode (Q1 2026). If you're building or using it, start with the training hub for a guided tour! For specifics, like a demo reaction, let me know. 🚀
