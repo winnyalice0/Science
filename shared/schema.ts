@@ -3,26 +3,13 @@ import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, uuid } from
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table (authentication)
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+// Note: User authentication is handled by Supabase Auth (auth.users table)
+// We don't need a separate users table - just reference auth.users
 
 // User profiles (with skill level assessment)
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid("user_id").notNull(), // References auth.users(id)
   fullName: text("full_name"),
   avatarUrl: text("avatar_url"),
   skillLevel: text("skill_level").notNull().default("beginner"), // beginner, intermediate, advanced
@@ -41,7 +28,10 @@ export const insertProfileSchema = createInsertSchema(profiles).omit({
   updatedAt: true,
 });
 
+export const updateProfileSchema = insertProfileSchema.partial().omit({ userId: true });
+
 export type InsertProfile = z.infer<typeof insertProfileSchema>;
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type Profile = typeof profiles.$inferSelect;
 
 // Simulations catalog
@@ -72,11 +62,11 @@ export type Simulation = typeof simulations.$inferSelect;
 // Workspaces (user's custom project areas)
 export const workspaces = pgTable("workspaces", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid("user_id").notNull(), // References auth.users(id)
   name: text("name").notNull(),
   description: text("description"),
   isPublic: boolean("is_public").notNull().default(false),
-  collaborators: text("collaborators").array().default([]),
+  collaborators: text("collaborators").array().default(sql`ARRAY[]::text[]`),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -93,8 +83,8 @@ export type Workspace = typeof workspaces.$inferSelect;
 // Workspace items (saved experiments/simulations)
 export const workspaceItems = pgTable("workspace_items", {
   id: uuid("id").primaryKey().defaultRandom(),
-  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  simulationId: uuid("simulation_id").references(() => simulations.id, { onDelete: 'set null' }),
+  workspaceId: uuid("workspace_id").notNull(), // References workspaces(id)
+  simulationId: uuid("simulation_id"), // References simulations(id), nullable
   title: text("title").notNull(),
   data: jsonb("data"), // Stores simulation state, observations, parameters
   notes: text("notes"),
@@ -114,8 +104,8 @@ export type WorkspaceItem = typeof workspaceItems.$inferSelect;
 // Simulation history (tracks user's simulation runs)
 export const simulationHistory = pgTable("simulation_history", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  simulationId: uuid("simulation_id").notNull().references(() => simulations.id, { onDelete: 'cascade' }),
+  userId: uuid("user_id").notNull(), // References auth.users(id)
+  simulationId: uuid("simulation_id").notNull(), // References simulations(id)
   score: integer("score"),
   duration: integer("duration"), // actual time spent in seconds
   completed: boolean("completed").notNull().default(false),

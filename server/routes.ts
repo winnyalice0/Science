@@ -1,26 +1,40 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, supabase } from "./storage";
 import { 
-  insertUserSchema, 
   insertProfileSchema,
+  updateProfileSchema,
   insertSimulationSchema,
   insertWorkspaceSchema,
   insertWorkspaceItemSchema,
   insertSimulationHistorySchema,
 } from "@shared/schema";
+import { z } from "zod";
+
+// Simple auth middleware - in production this would verify JWT tokens
+async function optionalAuth(req: Request, res: Response, next: NextFunction) {
+  // For MVP, we'll use a query parameter or header for user ID
+  // In production, this would decode a JWT token from Authorization header
+  const userId = req.query.userId as string || req.headers['x-user-id'] as string || "demo-user";
+  (req as any).userId = userId;
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // ============= Authentication Routes =============
+  // ============= Authentication Routes (Supabase Auth) =============
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, skillLevel } = req.body;
       
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
       // Create auth user in Supabase
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -35,17 +49,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Failed to create user" });
       }
 
-      // Create profile
-      const profile = await storage.createProfile({
+      // Create profile with Zod validation
+      const profileData = insertProfileSchema.parse({
         userId: authData.user.id,
-        skillLevel: req.body.skillLevel || "beginner",
-        xp: 0,
-        completedSimulations: 0,
-        totalHoursLogged: 0,
+        skillLevel: skillLevel || "beginner",
       });
 
-      res.json({ user: authData.user, profile });
+      const profile = await storage.createProfile(profileData);
+
+      res.json({ user: authData.user, profile, session: authData.session });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -54,6 +70,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, password } = req.body;
       
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -81,51 +101,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/auth/user", async (req, res) => {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) {
-        return res.status(401).json({ error: error.message });
-      }
-      res.json({ user });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // ============= Profile Routes =============
-  app.get("/api/profile", async (req, res) => {
+  app.get("/api/profile", optionalAuth, async (req, res) => {
     try {
-      // For now, we'll mock the user ID. In production, this would come from auth session
-      const userId = req.query.userId as string || "mock-user-id";
+      const userId = (req as any).userId;
       
       let profile = await storage.getProfile(userId);
       
       // Create a default profile if it doesn't exist
       if (!profile) {
-        profile = await storage.createProfile({
+        const profileData = insertProfileSchema.parse({
           userId,
           skillLevel: "beginner",
-          xp: 0,
-          completedSimulations: 0,
-          totalHoursLogged: 0,
         });
+        profile = await storage.createProfile(profileData);
       }
 
       res.json(profile);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.patch("/api/profile", async (req, res) => {
+  app.patch("/api/profile", optionalAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string || "mock-user-id";
-      const updates = req.body;
+      const userId = (req as any).userId;
+      const updates = updateProfileSchema.parse(req.body);
       
       const profile = await storage.updateProfile(userId, updates);
       res.json(profile);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -158,14 +169,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const simulation = await storage.createSimulation(validatedData);
       res.json(simulation);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
     }
   });
 
   // ============= Workspace Routes =============
-  app.get("/api/workspaces", async (req, res) => {
+  app.get("/api/workspaces", optionalAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string || "mock-user-id";
+      const userId = (req as any).userId;
       const workspaces = await storage.getUserWorkspaces(userId);
       res.json(workspaces);
     } catch (error: any) {
@@ -173,9 +187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/workspaces", async (req, res) => {
+  app.post("/api/workspaces", optionalAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string || "mock-user-id";
+      const userId = (req as any).userId;
       const validatedData = insertWorkspaceSchema.parse({
         ...req.body,
         userId,
@@ -183,11 +197,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const workspace = await storage.createWorkspace(validatedData);
       res.json(workspace);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
     }
   });
 
-  app.delete("/api/workspaces/:id", async (req, res) => {
+  app.delete("/api/workspaces/:id", optionalAuth, async (req, res) => {
     try {
       await storage.deleteWorkspace(req.params.id);
       res.json({ message: "Workspace deleted successfully" });
@@ -206,20 +223,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/workspace-items", async (req, res) => {
+  app.post("/api/workspace-items", optionalAuth, async (req, res) => {
     try {
       const validatedData = insertWorkspaceItemSchema.parse(req.body);
       const item = await storage.createWorkspaceItem(validatedData);
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/workspace-items/:id", optionalAuth, async (req, res) => {
+    try {
+      await storage.deleteWorkspaceItem(req.params.id);
+      res.json({ message: "Workspace item deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
   // ============= Simulation History Routes =============
-  app.get("/api/simulation-history/recent", async (req, res) => {
+  app.get("/api/simulation-history/recent", optionalAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string || "mock-user-id";
+      const userId = (req as any).userId;
       const limit = parseInt(req.query.limit as string) || 10;
       const history = await storage.getUserSimulationHistory(userId, limit);
       res.json(history);
@@ -228,9 +257,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/simulation-history", async (req, res) => {
+  app.post("/api/simulation-history", optionalAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string || "mock-user-id";
+      const userId = (req as any).userId;
       const validatedData = insertSimulationHistorySchema.parse({
         ...req.body,
         userId,
@@ -244,82 +273,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(history);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // ============= Seed Data Route (for development) =============
-  app.post("/api/seed", async (req, res) => {
-    try {
-      const seedSimulations = [
-        {
-          title: "Acid-Base Neutralization",
-          description: "Explore the fundamentals of acid-base chemistry by mixing HCl and NaOH to observe neutralization reactions, pH changes, and heat release.",
-          subject: "Chemistry",
-          difficulty: "Beginner",
-          duration: 10,
-          type: "acid-base",
-          tags: ["acids", "bases", "pH", "neutralization"],
-          featured: true,
-        },
-        {
-          title: "Precipitation Reactions",
-          description: "Mix silver nitrate and sodium chloride to observe the formation of silver chloride precipitate and learn about solubility rules.",
-          subject: "Chemistry",
-          difficulty: "Beginner",
-          duration: 15,
-          type: "precipitation",
-          tags: ["precipitation", "solubility", "ionic"],
-          featured: true,
-        },
-        {
-          title: "Redox Reactions",
-          description: "Study oxidation-reduction reactions by observing zinc metal reacting with hydrochloric acid to produce hydrogen gas.",
-          subject: "Chemistry",
-          difficulty: "Intermediate",
-          duration: 20,
-          type: "redox",
-          tags: ["oxidation", "reduction", "electrons"],
-          featured: false,
-        },
-        {
-          title: "Cell Structure Explorer",
-          description: "Take a 3D tour inside a eukaryotic cell, identifying organelles like mitochondria, nucleus, and endoplasmic reticulum.",
-          subject: "Biology",
-          difficulty: "Beginner",
-          duration: 15,
-          type: "cell-structure",
-          tags: ["cells", "organelles", "biology basics"],
-          featured: true,
-        },
-        {
-          title: "DNA Replication",
-          description: "Watch the DNA double helix unwind and see how new strands are synthesized through complementary base pairing.",
-          subject: "Biochemistry",
-          difficulty: "Intermediate",
-          duration: 20,
-          type: "dna-replication",
-          tags: ["DNA", "replication", "genetics"],
-          featured: true,
-        },
-        {
-          title: "Enzyme Kinetics",
-          description: "Study Michaelis-Menten kinetics by varying substrate concentration and observing enzyme reaction rates.",
-          subject: "Biochemistry",
-          difficulty: "Advanced",
-          duration: 30,
-          type: "enzyme-kinetics",
-          tags: ["enzymes", "kinetics", "catalysis"],
-          featured: false,
-        },
-      ];
-
-      for (const sim of seedSimulations) {
-        await storage.createSimulation(sim);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
       }
-
-      res.json({ message: "Seed data created successfully", count: seedSimulations.length });
-    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

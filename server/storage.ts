@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type {
-  User,
-  InsertUser,
   Profile,
   InsertProfile,
+  UpdateProfile,
   Simulation,
   InsertSimulation,
   Workspace,
@@ -14,21 +13,16 @@ import type {
   InsertSimulationHistory,
 } from "@shared/schema";
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export interface IStorage {
-  // User operations
-  getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-
   // Profile operations
   getProfile(userId: string): Promise<Profile | undefined>;
   createProfile(profile: InsertProfile): Promise<Profile>;
-  updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile>;
+  updateProfile(userId: string, updates: UpdateProfile): Promise<Profile>;
 
   // Simulation operations
   getAllSimulations(): Promise<Simulation[]>;
@@ -40,11 +34,13 @@ export interface IStorage {
   getUserWorkspaces(userId: string): Promise<Workspace[]>;
   getWorkspace(id: string): Promise<Workspace | undefined>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
+  updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace>;
   deleteWorkspace(id: string): Promise<void>;
 
   // Workspace Item operations
   getWorkspaceItems(workspaceId: string): Promise<WorkspaceItem[]>;
   createWorkspaceItem(item: InsertWorkspaceItem): Promise<WorkspaceItem>;
+  deleteWorkspaceItem(id: string): Promise<void>;
 
   // Simulation History operations
   getUserSimulationHistory(userId: string, limit?: number): Promise<SimulationHistory[]>;
@@ -52,46 +48,12 @@ export interface IStorage {
 }
 
 export class SupabaseStorage implements IStorage {
-  // User operations
-  async getUser(id: string): Promise<User | undefined> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error) return undefined;
-    return data as User;
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-    
-    if (error) return undefined;
-    return data as User;
-  }
-
-  async createUser(user: InsertUser): Promise<User> {
-    const { data, error } = await supabase
-      .from('users')
-      .insert(user)
-      .select()
-      .single();
-    
-    if (error) throw new Error(error.message);
-    return data as User;
-  }
-
   // Profile operations
   async getProfile(userId: string): Promise<Profile | undefined> {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .single();
     
     if (error) return undefined;
@@ -109,11 +71,11 @@ export class SupabaseStorage implements IStorage {
     return data as Profile;
   }
 
-  async updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile> {
+  async updateProfile(userId: string, updates: UpdateProfile): Promise<Profile> {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ ...updates, updatedAt: new Date().toISOString() })
-      .eq('userId', userId)
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
       .select()
       .single();
     
@@ -155,8 +117,25 @@ export class SupabaseStorage implements IStorage {
   }
 
   async incrementSimulationCompletion(id: string): Promise<void> {
-    const { error } = await supabase.rpc('increment_simulation_completion', { sim_id: id });
-    if (error) console.error('Error incrementing completion:', error);
+    // Fetch current simulation
+    const { data: simulation, error: fetchError } = await supabase
+      .from('simulations')
+      .select('completion_count')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !simulation) {
+      console.error('Error fetching simulation for increment:', fetchError);
+      return;
+    }
+
+    // Increment and update
+    const { error: updateError } = await supabase
+      .from('simulations')
+      .update({ completion_count: (simulation.completion_count || 0) + 1 })
+      .eq('id', id);
+    
+    if (updateError) console.error('Error incrementing completion:', updateError);
   }
 
   // Workspace operations
@@ -164,8 +143,8 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from('workspaces')
       .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false });
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
     
     if (error) throw new Error(error.message);
     return data as Workspace[];
@@ -193,6 +172,18 @@ export class SupabaseStorage implements IStorage {
     return data as Workspace;
   }
 
+  async updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace> {
+    const { data, error } = await supabase
+      .from('workspaces')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw new Error(error.message);
+    return data as Workspace;
+  }
+
   async deleteWorkspace(id: string): Promise<void> {
     const { error } = await supabase
       .from('workspaces')
@@ -207,8 +198,8 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from('workspace_items')
       .select('*')
-      .eq('workspaceId', workspaceId)
-      .order('createdAt', { ascending: false });
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false });
     
     if (error) throw new Error(error.message);
     return data as WorkspaceItem[];
@@ -225,13 +216,22 @@ export class SupabaseStorage implements IStorage {
     return data as WorkspaceItem;
   }
 
+  async deleteWorkspaceItem(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('workspace_items')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw new Error(error.message);
+  }
+
   // Simulation History operations
   async getUserSimulationHistory(userId: string, limit: number = 10): Promise<SimulationHistory[]> {
     const { data, error } = await supabase
       .from('simulation_history')
       .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .limit(limit);
     
     if (error) throw new Error(error.message);
