@@ -9,6 +9,7 @@ import {
   insertWorkspaceItemSchema,
   insertSimulationHistorySchema,
 } from "@shared/schema";
+import { trainingHubPaths } from "@shared/admin-schema";
 import { z } from "zod";
 
 // Simple auth middleware - in production this would verify JWT tokens
@@ -276,6 +277,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Validation error", details: error.errors });
       }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= Training Hub Routes (Public) =============
+  app.get("/api/training-hub", async (req, res) => {
+    try {
+      const { db } = storage;
+      if (!db) {
+        return res.status(500).json({ error: "Database not available" });
+      }
+
+      const paths = await db
+        .select()
+        .from(trainingHubPaths)
+        .where((table: any) => table.isPublished === true);
+
+      res.json(paths);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/training-hub/:pathId", async (req, res) => {
+    try {
+      const { db } = storage;
+      if (!db) {
+        return res.status(500).json({ error: "Database not available" });
+      }
+
+      const path = await db
+        .select()
+        .from(trainingHubPaths)
+        .where((table: any) => table.id === req.params.pathId && table.isPublished === true)
+        .limit(1);
+
+      if (!path || path.length === 0) {
+        return res.status(404).json({ error: "Training path not found" });
+      }
+
+      res.json(path[0]);
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

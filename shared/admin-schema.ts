@@ -130,3 +130,88 @@ export const insertEmailVerificationTokenSchema = createInsertSchema(
 
 export type InsertEmailVerificationToken = z.infer<typeof insertEmailVerificationTokenSchema>;
 export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+
+// Training Hub Paths - Created by admins
+export const trainingHubPaths = pgTable("training_hub_paths", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  subject: text("subject").notNull(), // Chemistry, Biology, Biochemistry, Physics, etc.
+  difficulty: text("difficulty").notNull(), // Beginner, Intermediate, Advanced
+  estimatedDuration: integer("estimated_duration").notNull(), // in minutes
+  thumbnailUrl: text("thumbnail_url"),
+  prerequisites: text("prerequisites").array().default([]),
+  tags: text("tags").array().default([]),
+  isPublished: boolean("is_published").notNull().default(true),
+  createdBy: uuid("created_by").notNull(), // Admin ID
+  moduleCount: integer("module_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertTrainingHubPathSchema = createInsertSchema(trainingHubPaths).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  moduleCount: true,
+});
+
+export type InsertTrainingHubPath = z.infer<typeof insertTrainingHubPathSchema>;
+export type TrainingHubPath = typeof trainingHubPaths.$inferSelect;
+
+// Training Hub Modules - Individual modules in paths
+export const trainingHubModules = pgTable("training_hub_modules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  pathId: uuid("path_id").notNull(), // References trainingHubPaths(id)
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  content: text("content").notNull(), // HTML/markdown content
+  duration: integer("duration").notNull(), // in minutes
+  objectives: text("objectives").array().default([]),
+  learningOutcomes: text("learning_outcomes").array().default([]),
+  resources: text("resources").array().default([]), // Links to resources
+  quiz: text("quiz"), // JSON with quiz questions
+  order: integer("order").notNull().default(0),
+  isPublished: boolean("is_published").notNull().default(true),
+  createdBy: uuid("created_by").notNull(), // Admin ID
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertTrainingHubModuleSchema = createInsertSchema(trainingHubModules).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTrainingHubModule = z.infer<typeof insertTrainingHubModuleSchema>;
+export type TrainingHubModule = typeof trainingHubModules.$inferSelect;
+
+// Workspace Templates - Created by admins for users to use
+export const workspaceTemplates = pgTable("workspace_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // Chemistry, Biology, etc.
+  icon: text("icon"), // Icon name or emoji
+  templateData: text("template_data"), // JSON structure for template
+  isPublished: boolean("is_published").notNull().default(true),
+  usageCount: integer("usage_count").notNull().default(0),
+  createdBy: uuid("created_by").notNull(), // Admin ID
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertWorkspaceTemplateSchema = createInsertSchema(workspaceTemplates).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  usageCount: true,
+});
+
+export type InsertWorkspaceTemplate = z.infer<typeof insertWorkspaceTemplateSchema>;
+export type WorkspaceTemplate = typeof workspaceTemplates.$inferSelect;
+

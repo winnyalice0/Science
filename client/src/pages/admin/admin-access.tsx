@@ -84,11 +84,19 @@ export default function AdminAccess() {
               {isLoading ? "Verifying..." : "Verify Access Code"}
             </Button>
 
-            <div className="pt-4 border-t">
-              <p className="text-xs text-slate-500 text-center">
+            <div className="pt-4 border-t space-y-2">
+              <p className="text-xs text-slate-500 text-center mb-2">
                 Don't have an access code?{" "}
                 <span className="text-slate-400">Contact the system administrator.</span>
               </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setLocation("/admin/login")}
+              >
+                Already have an account? Log In
+              </Button>
             </div>
           </form>
         </CardContent>

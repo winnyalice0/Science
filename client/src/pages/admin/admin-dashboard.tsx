@@ -15,11 +15,15 @@ import {
   BarChart3,
   AlertTriangle,
   Loader2,
+  BookOpen,
+  Layout,
 } from "lucide-react";
 import AdminUsersTab from "@/components/admin/admin-users-tab";
 import AdminModelsTab from "@/components/admin/admin-models-tab";
 import AdminSimulationsTab from "@/components/admin/admin-simulations-tab";
 import AdminOverviewTab from "@/components/admin/admin-overview-tab";
+import AdminTrainingHubTab from "@/components/admin/admin-training-hub-tab";
+import AdminWorkspaceTemplatesTab from "@/components/admin/admin-workspace-templates-tab";
 
 export default function AdminDashboard() {
   const { admin, isAdmin, isLoading, error } = useAdminAuth();
@@ -108,7 +112,7 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-auto p-4">
         <div className="max-w-7xl mx-auto">
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-4 bg-white dark:bg-slate-900 border">
+            <TabsList className="grid w-full max-w-2xl grid-cols-6 bg-white dark:bg-slate-900 border">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Overview</span>
@@ -123,7 +127,15 @@ export default function AdminDashboard() {
               </TabsTrigger>
               <TabsTrigger value="simulations" className="flex items-center gap-2">
                 <Play className="w-4 h-4" />
-                <span className="hidden sm:inline">Simulations</span>
+                <span className="hidden sm:inline">Sims</span>
+              </TabsTrigger>
+              <TabsTrigger value="training" className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                <span className="hidden sm:inline">Training</span>
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="flex items-center gap-2">
+                <Layout className="w-4 h-4" />
+                <span className="hidden sm:inline">Templates</span>
               </TabsTrigger>
             </TabsList>
 
@@ -142,6 +154,14 @@ export default function AdminDashboard() {
 
               <TabsContent value="simulations">
                 <AdminSimulationsTab admin={admin} />
+              </TabsContent>
+
+              <TabsContent value="training">
+                <AdminTrainingHubTab />
+              </TabsContent>
+
+              <TabsContent value="templates">
+                <AdminWorkspaceTemplatesTab />
               </TabsContent>
             </div>
           </Tabs>

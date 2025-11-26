@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FolderOpen, Plus, Trash2, FileText } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { Workspace, WorkspaceItem } from "@shared/schema";
 
 export default function Workspaces() {
@@ -22,20 +22,39 @@ export default function Workspaces() {
 
   const { data: workspaces, isLoading: workspacesLoading } = useQuery<Workspace[]>({
     queryKey: ["/api/workspaces"],
+    queryFn: async () => {
+      const response = await fetch("/api/workspaces");
+      if (!response.ok) throw new Error("Failed to fetch workspaces");
+      return response.json();
+    },
   });
 
   const { data: workspaceItems, isLoading: itemsLoading } = useQuery<WorkspaceItem[]>({
     queryKey: ["/api/workspaces", selectedWorkspace, "items"],
     enabled: !!selectedWorkspace,
+    queryFn: async () => {
+      const response = await fetch(`/api/workspaces/${selectedWorkspace}/items`);
+      if (!response.ok) throw new Error("Failed to fetch workspace items");
+      return response.json();
+    },
   });
 
   const createWorkspace = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/workspaces", {
-        name: newWorkspaceName,
-        description: newWorkspaceDesc,
-        isPublic: false,
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newWorkspaceName,
+          description: newWorkspaceDesc,
+          isPublic: false,
+        }),
       });
+
+      if (!response.ok) throw new Error("Failed to create workspace");
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
@@ -51,7 +70,12 @@ export default function Workspaces() {
 
   const deleteWorkspace = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/workspaces/${id}`, undefined);
+      const response = await fetch(`/api/workspaces/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete workspace");
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });

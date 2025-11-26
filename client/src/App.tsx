@@ -21,6 +21,7 @@ import Signup from "@/pages/auth/signup";
 import NotFound from "@/pages/not-found";
 import AdminAccess from "@/pages/admin/admin-access";
 import AdminSignup from "@/pages/admin/admin-signup";
+import AdminLogin from "@/pages/admin/admin-login";
 import AdminDashboard from "@/pages/admin/admin-dashboard";
 import AdminProtectedRoute from "@/components/admin-protected-route";
 
@@ -40,6 +41,7 @@ function Router() {
       {/* Admin Routes */}
       <Route path="/admin/access" component={AdminAccess} />
       <Route path="/admin/signup" component={AdminSignup} />
+      <Route path="/admin/login" component={AdminLogin} />
       <Route
         path="/admin-dashboard"
         component={() => <AdminProtectedRoute component={AdminDashboard} />}

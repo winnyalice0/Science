@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./storage";
-import { adminUsers, admin3DModels, adminSimulationContents, adminAuditLogs } from "@shared/admin-schema";
+import { adminUsers, admin3DModels, adminSimulationContents, adminAuditLogs, trainingHubPaths, trainingHubModules, workspaceTemplates } from "@shared/admin-schema";
 import { eq, desc } from "drizzle-orm";
 
 // Admin authentication middleware
@@ -336,6 +336,180 @@ export function registerAdminRoutes(app: Express) {
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: "Failed to delete simulation" });
+    }
+  });
+
+  // ========== TRAINING HUB ROUTES ==========
+
+  // Get all training hub paths
+  app.get("/api/admin/training-hub", async (req, res) => {
+    try {
+      const paths = await db
+        .select()
+        .from(trainingHubPaths)
+        .orderBy(desc(trainingHubPaths.createdAt));
+
+      res.json(paths);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch training paths" });
+    }
+  });
+
+  // Create training hub path
+  app.post("/api/admin/training-hub", async (req, res) => {
+    try {
+      const admin = await adminAuth(req, res);
+      if (!admin) return;
+
+      const { title, description, subject, difficulty, estimatedDuration } = req.body;
+
+      if (!title || !description || !subject || !difficulty) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const newPath = await db
+        .insert(trainingHubPaths)
+        .values({
+          title,
+          description,
+          subject,
+          difficulty,
+          estimatedDuration: estimatedDuration || 60,
+          createdBy: admin.id,
+          isPublished: true,
+          moduleCount: 0,
+        })
+        .returning();
+
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId: admin.id,
+        action: "created_training_path",
+        targetType: "training_path",
+        targetId: newPath[0].id,
+        changes: JSON.stringify(newPath[0]),
+      });
+
+      res.json(newPath[0]);
+    } catch (err) {
+      console.error("Training path creation error:", err);
+      res.status(500).json({ error: "Failed to create training path" });
+    }
+  });
+
+  // Delete training hub path
+  app.delete("/api/admin/training-hub/:pathId", async (req, res) => {
+    try {
+      const admin = await adminAuth(req, res);
+      if (!admin) return;
+
+      const { pathId } = req.params;
+
+      // Delete modules first
+      await db
+        .delete(trainingHubModules)
+        .where(eq(trainingHubModules.pathId, pathId));
+
+      // Delete path
+      await db
+        .delete(trainingHubPaths)
+        .where(eq(trainingHubPaths.id, pathId));
+
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId: admin.id,
+        action: "deleted_training_path",
+        targetType: "training_path",
+        targetId: pathId,
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete training path" });
+    }
+  });
+
+  // ========== WORKSPACE TEMPLATES ROUTES ==========
+
+  // Get all workspace templates
+  app.get("/api/admin/workspace-templates", async (req, res) => {
+    try {
+      const templates = await db
+        .select()
+        .from(workspaceTemplates)
+        .orderBy(desc(workspaceTemplates.createdAt));
+
+      res.json(templates);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch workspace templates" });
+    }
+  });
+
+  // Create workspace template
+  app.post("/api/admin/workspace-templates", async (req, res) => {
+    try {
+      const admin = await adminAuth(req, res);
+      if (!admin) return;
+
+      const { name, description, category, icon, templateData } = req.body;
+
+      if (!name || !description || !category) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const newTemplate = await db
+        .insert(workspaceTemplates)
+        .values({
+          name,
+          description,
+          category,
+          icon: icon || "⚗️",
+          templateData: templateData || JSON.stringify({ type: category }),
+          createdBy: admin.id,
+          isPublished: true,
+          usageCount: 0,
+        })
+        .returning();
+
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId: admin.id,
+        action: "created_workspace_template",
+        targetType: "workspace_template",
+        targetId: newTemplate[0].id,
+        changes: JSON.stringify(newTemplate[0]),
+      });
+
+      res.json(newTemplate[0]);
+    } catch (err) {
+      console.error("Workspace template creation error:", err);
+      res.status(500).json({ error: "Failed to create workspace template" });
+    }
+  });
+
+  // Delete workspace template
+  app.delete("/api/admin/workspace-templates/:templateId", async (req, res) => {
+    try {
+      const admin = await adminAuth(req, res);
+      if (!admin) return;
+
+      const { templateId } = req.params;
+
+      await db
+        .delete(workspaceTemplates)
+        .where(eq(workspaceTemplates.id, templateId));
+
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId: admin.id,
+        action: "deleted_workspace_template",
+        targetType: "workspace_template",
+        targetId: templateId,
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete workspace template" });
     }
   });
 }
