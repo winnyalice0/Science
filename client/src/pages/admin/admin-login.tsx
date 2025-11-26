@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, Eye, EyeOff, Shield } from "lucide-react";
-import { signIn } from "@/lib/supabase";
+import { signIn, supabase } from "@/lib/supabase";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -58,12 +58,23 @@ export default function AdminLogin() {
         return;
       }
 
+      // Get the authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        setError("Failed to get user information");
+        setIsLoading(false);
+        return;
+      }
+
       // Verify admin status
       const response = await fetch("/api/admin/auth/check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${user.id}`,
         },
+        body: JSON.stringify({ userId: user.id }),
       });
 
       if (!response.ok) {

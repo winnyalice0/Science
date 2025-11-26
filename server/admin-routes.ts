@@ -5,7 +5,8 @@ import { supabase } from "./storage";
 async function adminAuth(req: Request, res: Response) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Missing or invalid authorization" });
+    res.status(401).json({ error: "Missing or invalid authorization" });
+    return null;
   }
 
   const userId = authHeader.slice(7);
@@ -19,16 +20,19 @@ async function adminAuth(req: Request, res: Response) {
       .single();
 
     if (error || !admin) {
-      return res.status(403).json({ error: "User is not an admin" });
+      res.status(403).json({ error: "User is not an admin" });
+      return null;
     }
 
     if (!admin.is_active) {
-      return res.status(403).json({ error: "Admin account is inactive" });
+      res.status(403).json({ error: "Admin account is inactive" });
+      return null;
     }
 
     return admin;
   } catch (err) {
     console.error("Admin auth error:", err);
+    res.status(500).json({ error: "Internal server error" });
     return null;
   }
 }
@@ -46,7 +50,7 @@ export function registerAdminRoutes(app: Express) {
         .update({ last_login: new Date().toISOString() })
         .eq("id", admin.id);
 
-      res.json({
+      return res.json({
         id: admin.id,
         userId: admin.user_id,
         email: admin.email,
@@ -56,7 +60,7 @@ export function registerAdminRoutes(app: Express) {
         lastLogin: admin.last_login,
       });
     } catch (err) {
-      res.status(500).json({ error: "Failed to check admin status" });
+      return res.status(500).json({ error: "Failed to check admin status" });
     }
   });
 
@@ -70,13 +74,16 @@ export function registerAdminRoutes(app: Express) {
       }
 
       // Check if admin already exists
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from("admin_users")
         .select("*")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
-      if (existing) {
+      if (checkError) {
+        console.error("Error checking existing admin:", checkError);
+      }
+
+      if (existing && existing.length > 0) {
         return res.status(400).json({ error: "Admin account already exists" });
       }
 
@@ -94,12 +101,16 @@ export function registerAdminRoutes(app: Express) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error creating admin:", error);
+        throw error;
+      }
 
-      res.json({ success: true, admin: newAdmin });
+      console.log("Admin registered successfully:", newAdmin);
+      return res.json({ success: true, admin: newAdmin });
     } catch (err) {
       console.error("Admin registration error:", err);
-      res.status(500).json({ error: "Failed to register as admin" });
+      return res.status(500).json({ error: "Failed to register as admin", details: String(err) });
     }
   });
 
