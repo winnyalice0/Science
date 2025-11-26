@@ -10,19 +10,25 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 import Home from "@/pages/home";
 import Simulations from "@/pages/simulations";
+import Organs3DBrowser from "@/pages/organs-3d-browser";
 import VirtualLab from "@/pages/virtual-lab";
-import Dashboard from "@/pages/dashboard";
+import ProtectedDashboard from "@/pages/protected-dashboard";
 import Workspaces from "@/pages/workspaces";
-import ProfilePage from "@/pages/profile";
+import ProtectedProfile from "@/pages/protected-profile";
 import Training from "@/pages/training";
 import Login from "@/pages/auth/login";
 import Signup from "@/pages/auth/signup";
 import NotFound from "@/pages/not-found";
+import AdminAccess from "@/pages/admin/admin-access";
+import AdminSignup from "@/pages/admin/admin-signup";
+import AdminDashboard from "@/pages/admin/admin-dashboard";
+import AdminProtectedRoute from "@/components/admin-protected-route";
 
 function Router() {
   const [location] = useLocation();
   const isAuthPage = location.startsWith("/auth");
   const isHomePage = location === "/";
+  const isAdminPage = location.startsWith("/admin");
 
   return (
     <Switch>
@@ -31,12 +37,21 @@ function Router() {
       <Route path="/auth/login" component={Login} />
       <Route path="/auth/signup" component={Signup} />
       
-      {/* Protected Routes (would normally check auth) */}
+      {/* Admin Routes */}
+      <Route path="/admin/access" component={AdminAccess} />
+      <Route path="/admin/signup" component={AdminSignup} />
+      <Route
+        path="/admin-dashboard"
+        component={() => <AdminProtectedRoute component={AdminDashboard} />}
+      />
+      
+      {/* Protected Routes */}
       <Route path="/simulations" component={Simulations} />
+      <Route path="/organs-3d" component={Organs3DBrowser} />
       <Route path="/lab/:id" component={VirtualLab} />
-      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/dashboard" component={ProtectedDashboard} />
       <Route path="/workspaces" component={Workspaces} />
-      <Route path="/profile" component={ProfilePage} />
+      <Route path="/profile" component={ProtectedProfile} />
       <Route path="/training" component={Training} />
       
       {/* 404 Fallback */}
@@ -50,9 +65,10 @@ function App() {
   const isAuthPage = location.startsWith("/auth");
   const isHomePage = location === "/";
   const isLabPage = location.startsWith("/lab/");
+  const isAdminPage = location.startsWith("/admin");
 
-  // Don't show sidebar on auth pages, home page, or lab page
-  const showSidebar = !isAuthPage && !isHomePage && !isLabPage;
+  // Don't show sidebar on auth pages, admin pages, home page, or lab page
+  const showSidebar = !isAuthPage && !isAdminPage && !isHomePage && !isLabPage;
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",
@@ -81,7 +97,7 @@ function App() {
             </SidebarProvider>
           ) : (
             <div className="min-h-screen">
-              {!isAuthPage && !isLabPage && (
+              {!isAuthPage && !isAdminPage && !isLabPage && (
                 <div className="fixed top-4 right-4 z-50">
                   <ThemeToggle />
                 </div>

@@ -7,6 +7,8 @@ import {
   User,
   BarChart3,
   LogOut,
+  Microscope,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,10 +24,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
+import { signOut } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { title: "Home", url: "/", icon: Home },
   { title: "Browse Simulations", url: "/simulations", icon: Beaker },
+  { title: "3D Organs & Materials", url: "/organs-3d", icon: Microscope },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Workspaces", url: "/workspaces", icon: FolderOpen },
   { title: "Training Hub", url: "/training", icon: GraduationCap },
@@ -33,7 +40,29 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { user } = useAuth();
+  const { isAdmin } = useAdminAuth();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Logout Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      navigate("/");
+    }
+  };
+
+  const userInitial = user?.email?.charAt(0).toUpperCase() || "U";
 
   return (
     <Sidebar>
@@ -66,17 +95,38 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Admin Section - Only show if user is admin */}
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-red-600 dark:text-red-400">Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/admin-dashboard"} data-testid="link-admin-panel">
+                    <Link href="/admin-dashboard">
+                      <Shield className="h-4 w-4 text-red-600" />
+                      <span>Admin Panel</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4">
         <div className="flex items-center gap-3 p-2">
           <Avatar className="h-8 w-8">
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarFallback>{userInitial}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">User Account</p>
-            <p className="text-xs text-muted-foreground truncate">Beginner</p>
+            <p className="text-sm font-medium truncate">{user?.email || "User"}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {isAdmin ? "Admin User" : "Active"}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" data-testid="button-logout" aria-label="Logout">
+          <Button variant="ghost" size="icon" onClick={handleLogout} data-testid="button-logout" aria-label="Logout">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
