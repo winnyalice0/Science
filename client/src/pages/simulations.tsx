@@ -59,6 +59,28 @@ export default function Simulations() {
         </p>
       </div>
 
+      {/* Advanced Labs Quick Access */}
+      <div className="mb-8 grid md:grid-cols-2 gap-4">
+        <Link href="/chemical-lab">
+          <Card className="hover-elevate cursor-pointer bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-purple-200 dark:border-purple-800">
+            <CardHeader>
+              <div className="text-4xl mb-2">🧪</div>
+              <CardTitle className="text-lg">Chemical Reaction Builder</CardTitle>
+              <CardDescription>Interactive chemistry with 50+ chemicals and real reactions</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/biology-lab">
+          <Card className="hover-elevate cursor-pointer bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border-green-200 dark:border-green-800">
+            <CardHeader>
+              <div className="text-4xl mb-2">🔬</div>
+              <CardTitle className="text-lg">Biology Lab</CardTitle>
+              <CardDescription>Real cellular processes and biological reactions</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+      </div>
+
       {/* Search and Filters */}
       <div className="mb-8 space-y-4">
         <div className="flex gap-4">

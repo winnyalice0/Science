@@ -12,6 +12,9 @@ import Home from "@/pages/home";
 import Simulations from "@/pages/simulations";
 import Organs3DBrowser from "@/pages/organs-3d-browser";
 import VirtualLab from "@/pages/virtual-lab";
+import AdvancedVirtualLab from "@/pages/advanced-virtual-lab";
+import ChemicalReactionBuilder from "@/pages/chemical-reaction-builder";
+import BiologyLab from "@/pages/biology-lab";
 import ProtectedDashboard from "@/pages/protected-dashboard";
 import Workspaces from "@/pages/workspaces";
 import ProtectedProfile from "@/pages/protected-profile";
@@ -50,7 +53,10 @@ function Router() {
       {/* Protected Routes */}
       <Route path="/simulations" component={Simulations} />
       <Route path="/organs-3d" component={Organs3DBrowser} />
-      <Route path="/lab/:id" component={VirtualLab} />
+      <Route path="/chemical-lab" component={ChemicalReactionBuilder} />
+      <Route path="/biology-lab" component={BiologyLab} />
+      <Route path="/lab/:id" component={AdvancedVirtualLab} />
+      <Route path="/lab-basic/:id" component={VirtualLab} />
       <Route path="/dashboard" component={ProtectedDashboard} />
       <Route path="/workspaces" component={Workspaces} />
       <Route path="/profile" component={ProtectedProfile} />
@@ -66,7 +72,7 @@ function App() {
   const [location] = useLocation();
   const isAuthPage = location.startsWith("/auth");
   const isHomePage = location === "/";
-  const isLabPage = location.startsWith("/lab/");
+  const isLabPage = location.startsWith("/lab") || location.startsWith("/lab-basic");
   const isAdminPage = location.startsWith("/admin");
 
   // Don't show sidebar on auth pages, admin pages, home page, or lab page

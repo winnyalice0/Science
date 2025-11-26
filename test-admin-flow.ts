@@ -1,5 +1,5 @@
 const API_BASE = "http://localhost:5000";
-const TEST_USER_ID = "550e8400-e29b-41d4-a716-446655440000"; // Valid UUID v4
+const TEST_USER_ID = "012416ea-b3ea-4d63-91e6-a3c0c52adafd"; // Valid UUID v4
 
 async function testAdminFlow() {
   console.log("🧪 Testing Admin Registration and Login Flow\n");

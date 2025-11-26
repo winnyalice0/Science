@@ -35,28 +35,54 @@ export function useAdminAuth() {
           return null;
         }
 
-        // Fetch admin data from database
-        const response = await fetch("/api/admin/auth/check", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${user.id}`,
-          },
-          body: JSON.stringify({ userId: user.id }),
-        });
+        // Fetch admin data from database with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-        if (!response.ok) {
-          if (response.status === 403) {
-            setError("User is not an admin");
+        try {
+          const response = await fetch("/api/admin/auth/check", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${user.id}`,
+            },
+            body: JSON.stringify({ userId: user.id }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            if (response.status === 403) {
+              setError("User is not an admin");
+            } else if (response.status === 401) {
+              setError("Unauthorized");
+            } else {
+              setError("Failed to verify admin status");
+            }
+            return null;
+          }
+
+          const adminData = await response.json();
+          
+          // Validate the response has required fields
+          if (!adminData || typeof adminData !== 'object') {
+            setError("Invalid response from server");
+            return null;
+          }
+
+          setError(null);
+          return adminData;
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+            setError("Request timeout");
           } else {
-            setError("Failed to verify admin status");
+            const message = fetchErr instanceof Error ? fetchErr.message : "Network error";
+            setError(message);
           }
           return null;
         }
-
-        const adminData = await response.json();
-        setError(null);
-        return adminData;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setError(message);
@@ -65,11 +91,11 @@ export function useAdminAuth() {
         setIsChecking(false);
       }
     },
-    retry: false,
+    retry: 1,
     staleTime: Infinity,
   });
 
-  const isAdmin = !!admin && admin.isActive;
+  const isAdmin = !!admin && admin.isActive === true;
 
   return {
     admin,

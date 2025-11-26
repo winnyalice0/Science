@@ -6,6 +6,29 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
+-- Supabase Auth Users Table (Reference)
+-- ============================================
+-- NOTE: The auth.users table is managed by Supabase Auth automatically
+-- Users are created via Supabase Auth API and the following fields are available:
+-- - id: UUID primary key (user identifier)
+-- - email: TEXT - user's email address (unique)
+-- - encrypted_password: TEXT - bcrypt hashed password
+-- - email_confirmed_at: TIMESTAMP - email verification timestamp
+-- - invited_at: TIMESTAMP - invitation timestamp
+-- - confirmation_token: TEXT - email confirmation token
+-- - confirmation_sent_at: TIMESTAMP - confirmation email sent time
+-- - recovery_token: TEXT - password recovery token
+-- - recovery_sent_at: TIMESTAMP - recovery email sent time
+-- - created_at: TIMESTAMP - account creation time
+-- - updated_at: TIMESTAMP - last update time
+-- - is_sso_user: BOOLEAN - social sign-on flag
+-- - role: TEXT - user role (authenticated, service_role)
+-- - raw_app_meta_data: JSONB - application metadata
+-- - raw_user_meta_data: JSONB - user metadata
+-- - is_super_admin: BOOLEAN - super admin flag (Supabase internal)
+-- - deleted_at: TIMESTAMP - soft delete timestamp
+
+-- ============================================
 -- Profiles Table (User profile data)
 -- ============================================
 CREATE TABLE IF NOT EXISTS profiles (

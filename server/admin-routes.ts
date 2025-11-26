@@ -84,6 +84,7 @@ export function registerAdminRoutes(app: Express) {
       }
 
       if (existing && existing.length > 0) {
+        console.log("Admin account already exists for user:", userId);
         return res.status(400).json({ error: "Admin account already exists" });
       }
 
@@ -106,11 +107,27 @@ export function registerAdminRoutes(app: Express) {
         throw error;
       }
 
-      console.log("Admin registered successfully:", newAdmin);
-      return res.json({ success: true, admin: newAdmin });
+      if (!newAdmin) {
+        console.error("Admin creation returned no data");
+        throw new Error("Failed to create admin record");
+      }
+
+      // Transform response to camelCase
+      const adminResponse = {
+        id: newAdmin.id,
+        userId: newAdmin.user_id,
+        email: newAdmin.email,
+        name: newAdmin.name,
+        role: newAdmin.role,
+        isActive: newAdmin.is_active,
+        lastLogin: newAdmin.last_login,
+      };
+
+      console.log("Admin registered successfully:", adminResponse);
+      return res.json({ success: true, admin: adminResponse });
     } catch (err) {
       console.error("Admin registration error:", err);
-      return res.status(500).json({ error: "Failed to register as admin", details: String(err) });
+      return res.status(500).json({ error: "Failed to register as admin" });
     }
   });
 
