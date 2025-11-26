@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Play,
   RotateCcw,
@@ -18,8 +19,14 @@ import {
   ArrowLeft,
   Download,
   Save,
+  Plus,
+  Minus,
+  Eye,
+  Droplet,
 } from "lucide-react";
 import { RealtimeGraphAnalysis, DataTableView, type DataPoint } from "@/components/analysis-panel";
+import { MicroscopeViewer } from "@/components/microscope-3d";
+import type { MicroscopeParticle } from "@/components/microscope-3d";
 import {
   BIOLOGY_PROCESSES,
   BiologicalProcess,
@@ -28,6 +35,12 @@ import {
   simulateBacterialGrowth,
   simulateEnzymeActivity,
 } from "@/lib/biology-reactions-db";
+import {
+  BIOLOGY_MATERIALS,
+  getMaterialsByProcess,
+  checkMaterialAvailability,
+  type Material,
+} from "@/lib/biology-materials-db";
 
 interface ProcessSetup {
   selectedProcess: BiologicalProcess | null;
@@ -35,6 +48,11 @@ interface ProcessSetup {
   experimentData: DataPoint[];
   observations: string;
   temperature: number;
+  microscopeParticles: MicroscopeParticle[];
+  zoomLevel: number;
+  showMicroscope: boolean;
+  requiredMaterials: Material[];
+  usedMaterials: Set<string>;
 }
 
 function BiologyVisualization3D({
@@ -85,8 +103,73 @@ export default function BiologyLab() {
   const [observations, setObservations] = useState("");
   const [temperature, setTemperature] = useState(25);
   const [activeTab, setActiveTab] = useState("setup");
+  const [showMicroscope, setShowMicroscope] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(10);
+  const [microscopeParticles, setMicroscopeParticles] = useState<MicroscopeParticle[]>([]);
+  const [requiredMaterials, setRequiredMaterials] = useState<Material[]>([]);
+  const [usedMaterials, setUsedMaterials] = useState<Set<string>>(new Set());
 
   const categories = ["cellular", "enzymatic", "microbial", "molecular", "photosynthesis", "respiration"];
+
+  // Generate particles based on process
+  const generateMicroscopeParticles = (processId: string): MicroscopeParticle[] => {
+    const particleSets: Record<string, MicroscopeParticle[]> = {
+      photosynthesis: [
+        { id: "1", name: "Chloroplast", type: "cell", size: 0.8, color: "#00cc33", scale: 1.5, rotationSpeed: 1 },
+        { id: "2", name: "Mitochondria", type: "mitochondria", size: 0.5, color: "#ff9900", scale: 1, rotationSpeed: 2 },
+      ],
+      aerobic_respiration: [
+        { id: "1", name: "Mitochondrion", type: "mitochondria", size: 0.7, color: "#ff9900", scale: 2, rotationSpeed: 2 },
+        { id: "2", name: "Ribosome", type: "ribosome", size: 0.3, color: "#0099ff", scale: 1.5, rotationSpeed: 3 },
+      ],
+      anaerobic_fermentation: [
+        { id: "1", name: "Yeast Cell", type: "cell", size: 0.9, color: "#ffcc00", scale: 1.5, rotationSpeed: 1 },
+        { id: "2", name: "Vacuole", type: "cell", size: 0.4, color: "#ffff99", scale: 1, rotationSpeed: 0.5 },
+      ],
+      enzyme_catalysis: [
+        { id: "1", name: "Enzyme", type: "protein", size: 0.6, color: "#ff00ff", scale: 1.5, rotationSpeed: 2 },
+        { id: "2", name: "Substrate", type: "protein", size: 0.4, color: "#00ffff", scale: 1, rotationSpeed: 1 },
+      ],
+      mitosis_cell_division: [
+        { id: "1", name: "Chromosome", type: "chromosome", size: 0.8, color: "#ff0099", scale: 1.5, rotationSpeed: 1 },
+        { id: "2", name: "Chromosome", type: "chromosome", size: 0.8, color: "#ff0099", scale: 1.5, rotationSpeed: 1.2 },
+      ],
+      dna_extraction: [
+        { id: "1", name: "DNA Strand", type: "dna", size: 0.7, color: "#0099ff", scale: 1.5, rotationSpeed: 0.5 },
+        { id: "2", name: "DNA Strand", type: "dna", size: 0.6, color: "#00ffff", scale: 1.2, rotationSpeed: 0.6 },
+      ],
+      bacterial_growth: [
+        { id: "1", name: "E. coli", type: "bacteria", size: 0.5, color: "#00ff66", scale: 2, rotationSpeed: 2 },
+        { id: "2", name: "E. coli", type: "bacteria", size: 0.5, color: "#00ff66", scale: 2, rotationSpeed: 2 },
+      ],
+      osmosis_diffusion: [
+        { id: "1", name: "Water Molecule", type: "cell", size: 0.2, color: "#0099ff", scale: 1, rotationSpeed: 3 },
+        { id: "2", name: "Salt Ion", type: "protein", size: 0.25, color: "#ff9900", scale: 1, rotationSpeed: 2 },
+      ],
+      protein_synthesis: [
+        { id: "1", name: "Ribosome", type: "ribosome", size: 0.6, color: "#0099ff", scale: 1.5, rotationSpeed: 2 },
+        { id: "2", name: "Protein", type: "protein", size: 0.5, color: "#ff00ff", scale: 1, rotationSpeed: 1 },
+      ],
+    };
+    return particleSets[processId] || [];
+  };
+
+  const handleProcessSelect = (process: BiologicalProcess) => {
+    setSelectedProcess(process);
+    setMicroscopeParticles(generateMicroscopeParticles(process.id));
+    setRequiredMaterials(getMaterialsByProcess(process.id));
+    setUsedMaterials(new Set());
+  };
+
+  const toggleMaterial = (materialId: string) => {
+    const newUsed = new Set(usedMaterials);
+    if (newUsed.has(materialId)) {
+      newUsed.delete(materialId);
+    } else {
+      newUsed.add(materialId);
+    }
+    setUsedMaterials(newUsed);
+  };
 
   const runExperiment = () => {
     if (!selectedProcess) return;
@@ -207,7 +290,7 @@ export default function BiologyLab() {
                           size="sm"
                           className="w-full justify-start text-xs h-auto py-2"
                           onClick={() => {
-                            setSelectedProcess(process);
+                            handleProcessSelect(process);
                             setTemperature(25);
                           }}
                           disabled={isRunning}
@@ -317,20 +400,85 @@ export default function BiologyLab() {
           )}
         </div>
 
-        {/* Center-Right - 3D Visualization */}
-        <div className="lg:col-span-2 overflow-hidden">
-          <Card className="h-full">
-            {selectedProcess ? (
-              <BiologyVisualization3D
-                processId={selectedProcess.id}
-                isRunning={isRunning}
-                timeElapsed={timeElapsed}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center bg-muted">
-                <p className="text-muted-foreground">Select a process to view visualization</p>
+        {/* Center-Right - Microscope & Materials */}
+        <div className="lg:col-span-2 overflow-hidden flex flex-col gap-3">
+          {/* Microscope Viewer */}
+          <Card className="flex-1 overflow-hidden">
+            <CardHeader className="pb-2 border-b">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Microscope Viewer
+                </CardTitle>
+                <div className="flex items-center gap-2 text-xs">
+                  <span>Zoom: {zoomLevel}x</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="1000"
+                    value={zoomLevel}
+                    onChange={(e) => setZoomLevel(Number(e.target.value))}
+                    className="w-20"
+                  />
+                </div>
               </div>
-            )}
+            </CardHeader>
+            <CardContent className="p-0 h-full overflow-hidden">
+              {selectedProcess ? (
+                <MicroscopeViewer
+                  particles={microscopeParticles}
+                  zoomLevel={zoomLevel}
+                  className="h-full"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center bg-muted">
+                  <p className="text-muted-foreground">Select a process to view particles</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Materials Panel */}
+          <Card>
+            <CardHeader className="pb-2 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Droplet className="h-4 w-4" />
+                Lab Materials
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3 max-h-40 overflow-y-auto">
+              {requiredMaterials.length > 0 ? (
+                <div className="space-y-2">
+                  {requiredMaterials.map((material) => {
+                    const isUsed = usedMaterials.has(material.id);
+                    return (
+                      <div
+                        key={material.id}
+                        className="flex items-center gap-2 p-2 rounded border hover:bg-accent cursor-pointer transition"
+                        onClick={() => toggleMaterial(material.id)}
+                      >
+                        <Checkbox
+                          checked={isUsed}
+                          onCheckedChange={() => toggleMaterial(material.id)}
+                          className="cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{material.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {material.quantity} {material.unit}
+                          </p>
+                        </div>
+                        <Badge variant={material.hazard === "none" ? "secondary" : "destructive"} className="text-xs">
+                          {material.hazard === "none" ? "Safe" : "Caution"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Select a process to see required materials</p>
+              )}
+            </CardContent>
           </Card>
         </div>
       </div>
