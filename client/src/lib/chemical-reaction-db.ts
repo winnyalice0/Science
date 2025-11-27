@@ -31,6 +31,9 @@ export interface ReactionEquation {
   smokeAmount?: number; // 0-1 scale
   evaporationRate?: number; // 0-1 scale
   explosiveness?: number; // 0-1 scale
+  canExplode?: boolean; // True if reaction can cause explosion
+  explosionIntensity?: number; // 0-1 scale for explosion severity
+  explosionRadius?: number; // meters
 }
 
 export interface VisualizationEffect {
@@ -516,6 +519,27 @@ export const CHEMICAL_DATABASE: Record<string, ChemicalCompound> = {
     state: "solid",
     meltingPoint: 660,
   },
+  Al2O3: {
+    id: "Al2O3",
+    name: "Aluminum Oxide",
+    formula: "Al₂O₃",
+    type: "oxide",
+    molarMass: 101.96,
+    color: "#ffffff",
+    state: "solid",
+    meltingPoint: 2072,
+  },
+  H2O2: {
+    id: "H2O2",
+    name: "Hydrogen Peroxide",
+    formula: "H₂O₂",
+    type: "compound",
+    molarMass: 34.01,
+    color: "#ccffff",
+    state: "liquid",
+    boilingPoint: 150,
+    hazard: ["oxidizing", "irritant"],
+  },
 
   // Gases
   NH4Cl: {
@@ -878,5 +902,334 @@ export function calculateStoichiometry(reaction: ReactionEquation, limitingReact
       ...p,
       molesProduced: p.moles * ratio,
     })),
+  };
+}
+
+// Pre-made reactions with full material lists
+export interface PreMadeReaction {
+  id: string;
+  name: string;
+  category: "demonstration" | "synthesis" | "separation" | "decomposition" | "explosive";
+  description: string;
+  materials: { compound: ChemicalCompound; amount: number; unit: string }[];
+  equipment: string[];
+  procedure: string[];
+  expectedReaction: ReactionEquation;
+  videoUrl?: string;
+  safetyNotes: string[];
+}
+
+// Pre-made reaction library
+export const PREMADE_REACTIONS: PreMadeReaction[] = [
+  // Saponification (Soap Making)
+  {
+    id: "saponification",
+    name: "Saponification (Soap Making)",
+    category: "synthesis",
+    description: "Production of soap from fats/oils and alkali. Classic chemistry reaction used industrially.",
+    materials: [
+      { compound: CHEMICAL_DATABASE.NaOH, amount: 20, unit: "g" },
+      { compound: CHEMICAL_DATABASE.H2O, amount: 50, unit: "mL" },
+      // Note: Would add fat/oil if in database
+    ],
+    equipment: ["Beaker", "Thermometer", "Stirring rod", "Graduated cylinder", "Hot plate"],
+    procedure: [
+      "Heat oil/fat to 40-50°C in beaker",
+      "Prepare sodium hydroxide solution (20g NaOH + 50mL water)",
+      "Slowly add NaOH solution to heated oil while stirring continuously",
+      "Stir mixture for 30 minutes until saponification occurs",
+      "Add salt (NaCl) solution to precipitate soap",
+      "Cool mixture and separate soap layer",
+      "Wash soap with cold water and dry",
+    ],
+    expectedReaction: {
+      reactants: [
+        { compound: CHEMICAL_DATABASE.NaOH, moles: 3 },
+      ],
+      products: [
+        { compound: CHEMICAL_DATABASE.NaCl, moles: 1 },
+      ],
+      equation: "Fat/Oil + 3NaOH → Soap + Glycerol",
+      deltaH: -85,
+      deltaS: -0.120,
+      condition: "heat",
+      visualEffects: [
+        { type: "color_change", intensity: 0.8, duration: 30000, color: "#ffcccc" },
+        { type: "effervescence", intensity: 0.4, duration: 30000 },
+      ],
+      observations: [
+        "Mixture becomes creamy",
+        "Temperature rises gradually",
+        "Soap forms at surface",
+        "Distinct phases separate",
+      ],
+      productColor: "#ffcccc",
+    },
+    safetyNotes: [
+      "NaOH is caustic - handle with care",
+      "Wear gloves and eye protection",
+      "Do not inhale vapors",
+    ],
+  },
+
+  // NaCl Separation (Electrolysis)
+  {
+    id: "nacl_separation",
+    name: "Sodium Chloride Separation (Electrolysis)",
+    category: "separation",
+    description: "Electrolysis of NaCl solution to produce Cl₂, H₂, and NaOH.",
+    materials: [
+      { compound: CHEMICAL_DATABASE.NaCl, amount: 50, unit: "g" },
+      { compound: CHEMICAL_DATABASE.H2O, amount: 200, unit: "mL" },
+    ],
+    equipment: ["Electrolysis cell", "Power supply", "Electrodes", "Beaker", "Test tubes"],
+    procedure: [
+      "Dissolve 50g NaCl in 200mL water",
+      "Place electrodes in solution",
+      "Connect to DC power supply (12V)",
+      "Observe gas evolution at electrodes",
+      "Test gases with burning splint",
+      "Monitor pH change over time",
+      "Continue until color change observed",
+    ],
+    expectedReaction: {
+      reactants: [
+        { compound: CHEMICAL_DATABASE.NaCl, moles: 1 },
+        { compound: CHEMICAL_DATABASE.H2O, moles: 1 },
+      ],
+      products: [
+        { compound: CHEMICAL_DATABASE.Cl2, moles: 1 },
+        { compound: CHEMICAL_DATABASE.H2, moles: 0.5 },
+        { compound: CHEMICAL_DATABASE.NaOH, moles: 1 },
+      ],
+      equation: "2NaCl + 2H₂O → Cl₂ + H₂ + 2NaOH (electrolysis)",
+      deltaH: 400, // Endothermic - requires electrical energy
+      deltaS: 0.250,
+      condition: "catalyst",
+      visualEffects: [
+        { type: "effervescence", intensity: 0.9, duration: 30000, color: "#ffff00" },
+        { type: "color_change", intensity: 0.7, duration: 30000, color: "#ccffcc" },
+        { type: "light", intensity: 0.5, duration: 30000 },
+      ],
+      observations: [
+        "Bubbles at both electrodes",
+        "Solution becomes basic (alkaline)",
+        "Chlorine gas (yellow-green) produced",
+        "Hydrogen gas (colorless) produced",
+      ],
+      productColor: "#ffff00",
+    },
+    safetyNotes: [
+      "Chlorine gas is toxic - ensure good ventilation",
+      "Do not inhale chlorine gas",
+      "Wear goggles and gloves",
+    ],
+  },
+
+  // Thermite Reaction (Explosive)
+  {
+    id: "thermite_reaction",
+    name: "Thermite Reaction (Fe₂O₃ + Al)",
+    category: "explosive",
+    description: "Highly exothermic reaction producing molten iron. Dangerous - demonstration only!",
+    materials: [
+      { compound: CHEMICAL_DATABASE.Fe2O3, amount: 60, unit: "g" },
+      { compound: CHEMICAL_DATABASE.Al, amount: 15, unit: "g" },
+    ],
+    equipment: ["Crucible", "Thermite mixture", "Fuse", "Protective barriers"],
+    procedure: [
+      "Mix Fe₂O₃ powder and aluminum powder in 8:3 ratio",
+      "Place mixture in refractory crucible",
+      "Insert fuse carefully",
+      "Ensure all spectators behind barrier",
+      "Ignite and observe from safe distance",
+      "Allow to cool completely before handling",
+    ],
+    expectedReaction: {
+      reactants: [
+        { compound: CHEMICAL_DATABASE.Fe2O3, moles: 1 },
+        { compound: CHEMICAL_DATABASE.Al, moles: 2 },
+      ],
+      products: [
+        { compound: CHEMICAL_DATABASE.Fe, moles: 2 },
+        { compound: CHEMICAL_DATABASE.Al2O3, moles: 1 },
+      ],
+      equation: "Fe₂O₃ + 2Al → 2Fe + Al₂O₃",
+      deltaH: -3400, // Extremely exothermic
+      deltaS: -0.180,
+      condition: "heat",
+      visualEffects: [
+        { type: "flame", intensity: 1.0, duration: 5000, color: "#ffff00" },
+        { type: "light", intensity: 1.0, duration: 5000 },
+        { type: "color_change", intensity: 1.0, duration: 5000, color: "#ff6600" },
+      ],
+      observations: [
+        "Brilliant white light",
+        "Sparks fly dramatically",
+        "Molten metal produced (2000°C+)",
+        "Container may rupture",
+      ],
+      productColor: "#ff6600",
+      fireIntensity: 1.0,
+      smokeAmount: 0.7,
+      canExplode: true,
+      explosionIntensity: 0.9,
+      explosionRadius: 5,
+    },
+    safetyNotes: [
+      "EXTREME HAZARD - Professional use only",
+      "Everyone must be behind barrier",
+      "Wear full protective gear",
+      "Never perform indoors",
+      "Molten metal is extremely dangerous",
+    ],
+  },
+
+  // Hydrogen Peroxide Decomposition (with catalyst)
+  {
+    id: "h2o2_decomposition",
+    name: "Hydrogen Peroxide Decomposition (Elephant Toothpaste)",
+    category: "demonstration",
+    description: "Catalytic decomposition of H₂O₂ produces foam due to rapid O₂ evolution.",
+    materials: [
+      { compound: CHEMICAL_DATABASE.H2O2, amount: 200, unit: "mL" },
+      { compound: CHEMICAL_DATABASE.MnO2, amount: 5, unit: "g" },
+    ],
+    equipment: ["Beaker", "Graduated cylinder", "Catalyst powder", "Thermometer"],
+    procedure: [
+      "Place 200mL 30% H₂O₂ in beaker",
+      "Add food coloring if desired",
+      "Add MnO₂ catalyst (5g)",
+      "Observe rapid foam formation",
+      "Measure temperature change",
+      "Test evolved gas with burning splint",
+    ],
+    expectedReaction: {
+      reactants: [
+        { compound: CHEMICAL_DATABASE.H2O2, moles: 2 },
+      ],
+      products: [
+        { compound: CHEMICAL_DATABASE.H2O, moles: 2 },
+        { compound: CHEMICAL_DATABASE.O2, moles: 1 },
+      ],
+      equation: "2H₂O₂ → 2H₂O + O₂ (MnO₂ catalyst)",
+      deltaH: -98,
+      deltaS: 0.173,
+      condition: "catalyst",
+      visualEffects: [
+        { type: "effervescence", intensity: 1.0, duration: 10000, particle_count: 500 },
+        { type: "color_change", intensity: 0.5, duration: 10000 },
+      ],
+      observations: [
+        "Rapid foam eruption",
+        "White foam fills container",
+        "Temperature increases",
+        "Strong oxidizing smell",
+      ],
+      productColor: "#ffffff",
+      smokeAmount: 0.2,
+    },
+    safetyNotes: [
+      "H₂O₂ can cause irritation",
+      "Avoid contact with eyes",
+      "Use appropriate concentration (30%)",
+    ],
+  },
+
+  // Combustion Reaction
+  {
+    id: "methanol_combustion",
+    name: "Methanol Combustion (Blue Flame)",
+    category: "demonstration",
+    description: "Controlled combustion of methanol with clean blue flame.",
+    materials: [
+      { compound: CHEMICAL_DATABASE.CH3OH, amount: 50, unit: "mL" },
+      { compound: CHEMICAL_DATABASE.O2, amount: 1000, unit: "mL" },
+    ],
+    equipment: ["Alcohol lamp", "Matches", "Beaker", "Thermometer"],
+    procedure: [
+      "Pour 50mL methanol into beaker",
+      "Light with match",
+      "Observe blue flame",
+      "Measure heat output with thermometer",
+      "Identify products (CO₂, H₂O)",
+      "Observe soot formation (if incomplete)",
+    ],
+    expectedReaction: {
+      reactants: [
+        { compound: CHEMICAL_DATABASE.CH3OH, moles: 1 },
+        { compound: CHEMICAL_DATABASE.O2, moles: 1.5 },
+      ],
+      products: [
+        { compound: CHEMICAL_DATABASE.CO2, moles: 1 },
+        { compound: CHEMICAL_DATABASE.H2O, moles: 2 },
+      ],
+      equation: "2CH₃OH + 3O₂ → 2CO₂ + 4H₂O",
+      deltaH: -1452,
+      deltaS: 0.186,
+      condition: "heat",
+      visualEffects: [
+        { type: "flame", intensity: 0.9, duration: 10000, color: "#0099ff" },
+        { type: "light", intensity: 0.8, duration: 10000 },
+      ],
+      observations: [
+        "Clean blue flame",
+        "Heat production",
+        "No visible smoke",
+        "Complete combustion",
+      ],
+      productColor: "#0099ff",
+      fireIntensity: 0.9,
+    },
+    safetyNotes: [
+      "Methanol is flammable and toxic",
+      "Do not inhale fumes",
+      "Keep away from open flames until ready",
+      "Use fume hood if available",
+    ],
+  },
+];
+
+// Material connection visualization data
+export interface MaterialConnection {
+  from: string; // Chemical ID
+  to: string; // Chemical ID  
+  type: "input" | "output" | "catalyst";
+  ratio: number;
+  label: string;
+}
+
+// Get connections for a reaction
+export function getReactionConnections(reaction: ReactionEquation): MaterialConnection[] {
+  const connections: MaterialConnection[] = [];
+
+  reaction.reactants.forEach((r) => {
+    reaction.products.forEach((p) => {
+      connections.push({
+        from: r.compound.id,
+        to: p.compound.id,
+        type: "input",
+        ratio: p.moles / r.moles,
+        label: `${r.moles}:${p.moles}`,
+      });
+    });
+  });
+
+  return connections;
+}
+
+// Check if reaction can explode
+export function canReactionExplode(reaction: ReactionEquation): boolean {
+  return reaction.canExplode === true || (reaction.explosiveness ?? 0) > 0.7;
+}
+
+// Get explosion parameters
+export function getExplosionParams(reaction: ReactionEquation) {
+  return {
+    canExplode: canReactionExplode(reaction),
+    intensity: reaction.explosionIntensity ?? 0,
+    radius: reaction.explosionRadius ?? 2,
+    fireIntensity: reaction.fireIntensity ?? 0,
+    smokeAmount: reaction.smokeAmount ?? 0,
   };
 }

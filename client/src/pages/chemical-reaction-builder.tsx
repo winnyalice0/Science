@@ -35,16 +35,24 @@ import {
   Save,
   ArrowLeft,
   Check,
+  Bomb,
+  TrendingUp,
 } from "lucide-react";
 import { AdvancedApparatus3D } from "@/components/advanced-apparatus-3d";
 import { RealtimeGraphAnalysis, DataTableView, type DataPoint } from "@/components/analysis-panel";
+import { ExplosionEffect } from "@/components/explosion-effect";
+import { MaterialFlowVisualization } from "@/components/material-flow-viz";
 import {
   CHEMICAL_DATABASE,
   REACTION_DATABASE,
+  PREMADE_REACTIONS,
   ChemicalCompound,
   ReactionEquation,
+  PreMadeReaction,
   suggestReactions,
   calculateStoichiometry,
+  canReactionExplode,
+  getExplosionParams,
 } from "@/lib/chemical-reaction-db";
 
 interface ReactionSetup {
@@ -121,12 +129,16 @@ export default function ChemicalReactionBuilder() {
   const [, navigate] = useLocation();
   const [reactants, setReactants] = useState<ChemicalCompound[]>([]);
   const [selectedReaction, setSelectedReaction] = useState<ReactionEquation | null>(null);
+  const [selectedPreMade, setSelectedPreMade] = useState<PreMadeReaction | null>(null);
   const [equation, setEquation] = useState("");
   const [temperature, setTemperature] = useState(25);
   const [isRunning, setIsRunning] = useState(false);
   const [experimentData, setExperimentData] = useState<DataPoint[]>([]);
   const [observations, setObservations] = useState("");
   const [activeTab, setActiveTab] = useState("setup");
+  const [showExplosion, setShowExplosion] = useState(false);
+  const [explosionParams, setExplosionParams] = useState<any>(null);
+  const [visualizationMode, setVisualizationMode] = useState<"apparatus" | "flow" | "explosion">("apparatus");
 
   // Chemical compounds by type
   const acids = Object.values(CHEMICAL_DATABASE).filter(c => c.type === "acid");
@@ -156,19 +168,48 @@ export default function ChemicalReactionBuilder() {
   };
 
   const runReaction = () => {
-    if (!selectedReaction) return;
+    if (!selectedReaction && !selectedPreMade) return;
+
+    const reaction = selectedReaction || selectedPreMade?.expectedReaction;
+    if (!reaction) return;
+
+    // Check if reaction can explode
+    if (canReactionExplode(reaction)) {
+      setShowExplosion(true);
+      const explosionData = getExplosionParams(reaction);
+      setExplosionParams({
+        intensity: explosionData.intensity,
+        radius: explosionData.radius,
+        position: [0, 0, 0],
+        fireIntensity: explosionData.fireIntensity,
+        smokeAmount: explosionData.smokeAmount,
+      });
+
+      // Add explosion observation
+      const explosionObs = `⚠️ EXPLOSION! ${reaction.equation}\n` +
+        `Intensity: ${(explosionData.intensity * 100).toFixed(0)}%\n` +
+        `Blast radius: ${explosionData.radius}m\n` +
+        `WARNING: Apparatus may be damaged!\n\n`;
+
+      setObservations(prev => prev + explosionObs);
+
+      // Auto-hide explosion after 5 seconds
+      setTimeout(() => setShowExplosion(false), 5000);
+      setIsRunning(false);
+      return;
+    }
 
     setIsRunning(true);
     setExperimentData([]);
 
     let timeElapsed = 0;
-    const reactionDuration = 8000; // 8 seconds
+    const reactionDuration = selectedPreMade ? selectedPreMade.expectedReaction.deltaH > 0 ? 20000 : 8000 : 8000;
 
     const interval = setInterval(() => {
       timeElapsed += 500;
 
       // Calculate temperature change based on reaction exothermicity
-      const tempChange = (selectedReaction.deltaH < 0 ? -selectedReaction.deltaH : selectedReaction.deltaH) / 200;
+      const tempChange = (reaction.deltaH < 0 ? -reaction.deltaH : reaction.deltaH) / 200;
       const currentTemp = 25 + tempChange * (timeElapsed / reactionDuration) * (isRunning ? 1 : 0);
 
       setExperimentData(prev => [
@@ -186,19 +227,27 @@ export default function ChemicalReactionBuilder() {
         setTemperature(25);
 
         // Add observation
-        const newObs = `✓ Reaction complete: ${selectedReaction.equation}\n` +
-          `Heat released: ${Math.abs(selectedReaction.deltaH)} kJ/mol\n` +
-          `Observations: ${selectedReaction.observations.join(", ")}\n`;
+        const newObs = `✓ Reaction complete: ${reaction.equation}\n` +
+          `Heat released: ${Math.abs(reaction.deltaH)} kJ/mol\n` +
+          `Observations: ${reaction.observations.join(", ")}\n`;
 
         setObservations(prev => prev + newObs);
       }
     }, 500);
   };
 
+  const loadPreMadeReaction = (premade: PreMadeReaction) => {
+    setSelectedPreMade(premade);
+    setSelectedReaction(premade.expectedReaction);
+    setEquation(premade.expectedReaction.equation);
+    setObservations(`Pre-made: ${premade.name}\n\nSafety Notes:\n${premade.safetyNotes.join("\n")}\n\nProcedure:\n${premade.procedure.join("\n")}\n\n`);
+  };
+
   const resetReaction = () => {
     setIsRunning(false);
     setTemperature(25);
     setExperimentData([]);
+    setShowExplosion(false);
   };
 
   return (
@@ -302,8 +351,9 @@ export default function ChemicalReactionBuilder() {
         {/* Center-Left - Reaction Setup */}
         <div className="overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="setup">Setup</TabsTrigger>
+              <TabsTrigger value="premade">Pre-made</TabsTrigger>
               <TabsTrigger value="equation">Equation</TabsTrigger>
             </TabsList>
 
@@ -362,6 +412,38 @@ export default function ChemicalReactionBuilder() {
               )}
             </TabsContent>
 
+            <TabsContent value="premade" className="mt-4 space-y-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">📚 Pre-made Reactions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {PREMADE_REACTIONS.map((premade) => (
+                    <Button
+                      key={premade.id}
+                      variant={selectedPreMade?.id === premade.id ? "default" : "outline"}
+                      className="w-full justify-start text-xs h-auto py-3"
+                      onClick={() => loadPreMadeReaction(premade)}
+                    >
+                      <div className="text-left w-full">
+                        <p className="font-semibold">{premade.name}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{premade.description}</p>
+                        <div className="flex gap-1 mt-1">
+                          <Badge variant="secondary" className="text-xs">{premade.category}</Badge>
+                          {premade.category === "explosive" && (
+                            <Badge variant="destructive" className="text-xs">
+                              <Bomb className="h-2 w-2 mr-1" />
+                              EXPLOSIVE
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="equation" className="mt-4">
               <Card>
                 <CardHeader>
@@ -378,18 +460,27 @@ export default function ChemicalReactionBuilder() {
                     />
                   </div>
 
-                  {selectedReaction && (
+                  {(selectedReaction || selectedPreMade) && (
                     <div className="space-y-2">
                       <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded text-xs">
-                        <p className="font-semibold">ΔH (Enthalpy): {selectedReaction.deltaH} kJ/mol</p>
+                        <p className="font-semibold">ΔH (Enthalpy): {(selectedReaction || selectedPreMade?.expectedReaction)?.deltaH} kJ/mol</p>
                         <p className="text-muted-foreground">
-                          {selectedReaction.deltaH < 0 ? "🔥 Exothermic (releases heat)" : "❄️ Endothermic (absorbs heat)"}
+                          {(selectedReaction || selectedPreMade?.expectedReaction)?.deltaH! < 0 ? "🔥 Exothermic (releases heat)" : "❄️ Endothermic (absorbs heat)"}
                         </p>
                       </div>
+                      {canReactionExplode(selectedReaction || selectedPreMade?.expectedReaction!) && (
+                        <div className="p-2 bg-red-50 dark:bg-red-950 rounded text-xs">
+                          <p className="font-semibold flex items-center gap-1">
+                            <Bomb className="h-3 w-3" />
+                            ⚠️ EXPLOSIVE REACTION
+                          </p>
+                          <p className="text-muted-foreground">This reaction can cause an explosion!</p>
+                        </div>
+                      )}
                       <div className="p-2 bg-amber-50 dark:bg-amber-950 rounded text-xs">
                         <p className="font-semibold">Observations:</p>
                         <ul className="mt-1 space-y-1 list-disc list-inside">
-                          {selectedReaction.observations.map((obs, i) => (
+                          {(selectedReaction || selectedPreMade?.expectedReaction)?.observations.map((obs, i) => (
                             <li key={i} className="text-xs">{obs}</li>
                           ))}
                         </ul>
@@ -403,23 +494,66 @@ export default function ChemicalReactionBuilder() {
         </div>
 
         {/* Center-Right - 3D Visualization */}
-        <div className="lg:col-span-2 overflow-hidden">
-          <Card className="h-full">
-            <Suspense
-              fallback={
-                <div className="h-full flex items-center justify-center bg-muted">
-                  <p className="text-muted-foreground">Loading 3D reaction...</p>
-                </div>
-              }
+        <div className="lg:col-span-2 overflow-hidden flex flex-col gap-2">
+          {/* Visualization Mode Selector */}
+          <div className="flex gap-2">
+            <Button
+              variant={visualizationMode === "apparatus" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setVisualizationMode("apparatus")}
+              className="text-xs"
             >
-              <Canvas>
-                <ChemicalReactionScene
-                  reaction={selectedReaction}
-                  temperature={temperature}
-                  isRunning={isRunning}
-                />
-              </Canvas>
-            </Suspense>
+              🧪 Apparatus
+            </Button>
+            <Button
+              variant={visualizationMode === "flow" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setVisualizationMode("flow")}
+              className="text-xs"
+              disabled={!selectedReaction && !selectedPreMade}
+            >
+              <TrendingUp className="h-3 w-3 mr-1" />
+              Material Flow
+            </Button>
+            {(selectedReaction || selectedPreMade) && canReactionExplode(selectedReaction || selectedPreMade?.expectedReaction!) && (
+              <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                <Bomb className="h-3 w-3" />
+                EXPLOSIVE
+              </Badge>
+            )}
+          </div>
+
+          {/* Visualization Area */}
+          <Card className="flex-1 overflow-hidden relative">
+            {showExplosion && explosionParams && (
+              <ExplosionEffect params={explosionParams} />
+            )}
+
+            {visualizationMode === "apparatus" ? (
+              <Suspense
+                fallback={
+                  <div className="h-full flex items-center justify-center bg-muted">
+                    <p className="text-muted-foreground">Loading 3D reaction...</p>
+                  </div>
+                }
+              >
+                <Canvas>
+                  <ChemicalReactionScene
+                    reaction={selectedReaction || selectedPreMade?.expectedReaction || null}
+                    temperature={temperature}
+                    isRunning={isRunning}
+                  />
+                </Canvas>
+              </Suspense>
+            ) : visualizationMode === "flow" && (selectedReaction || selectedPreMade?.expectedReaction) ? (
+              <MaterialFlowVisualization
+                reaction={selectedReaction || selectedPreMade?.expectedReaction!}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center bg-muted">
+                <p className="text-muted-foreground">Select a visualization mode</p>
+              </div>
+            )}
           </Card>
         </div>
       </div>
@@ -427,10 +561,10 @@ export default function ChemicalReactionBuilder() {
       {/* Bottom - Controls and Analysis */}
       <div className="border-t p-4 bg-white dark:bg-slate-900 space-y-4">
         {/* Controls */}
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <Button
             onClick={runReaction}
-            disabled={!selectedReaction || isRunning}
+            disabled={(!selectedReaction && !selectedPreMade) || isRunning}
             className="gap-2"
             size="lg"
           >
